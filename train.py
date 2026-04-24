@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from model import ESMAllergenicityModel
 from dataset import ProteinDataset
@@ -53,22 +53,21 @@ def evaluate(model, val_loader, device):
 def train():
     # Parameters
     model_name = "facebook/esm2_t33_650M_UR50D"
-    data_path = "/home/team/shared/data/processed_data.csv"
+    train_path = "/home/team/shared/data/train.csv"
+    val_path = "/home/team/shared/data/val.csv"
     batch_size = 16
     lr = 1e-4
     epochs = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    if not os.path.exists(data_path):
-        print(f"Data not found at {data_path}. Please ensure bio_researcher has prepared the data.")
+    if not os.path.exists(train_path) or not os.path.exists(val_path):
+        print(f"Data not found. Please ensure bio_researcher has prepared train.csv and val.csv in /home/team/shared/data/")
         return
 
-    # Load Dataset
-    dataset = ProteinDataset(data_path, tokenizer_name=model_name)
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    # Load Datasets
+    train_dataset = ProteinDataset(train_path, tokenizer_name=model_name)
+    val_dataset = ProteinDataset(val_path, tokenizer_name=model_name)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
