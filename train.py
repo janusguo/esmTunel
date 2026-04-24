@@ -50,17 +50,27 @@ def evaluate(model, data_loader, device):
         'auc': auc
     }
 
+import argparse
+
 def train():
+    parser = argparse.ArgumentParser(description="Fine-tune ESM model for protein allergenicity prediction")
+    parser.add_argument("--model_name", type=str, default="facebook/esm2_t33_650M_UR50D", help="Hugging Face model name")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument("--max_steps", type=int, default=-1, help="Maximum number of steps per epoch")
+    args = parser.parse_args()
+
     # Parameters
-    model_name = "facebook/esm2_t33_650M_UR50D"
+    model_name = args.model_name
     data_dir = "/home/team/shared/data"
     train_path = os.path.join(data_dir, "train.csv")
     val_path = os.path.join(data_dir, "val.csv")
     test_path = os.path.join(data_dir, "test.csv")
     
-    batch_size = 16
-    lr = 1e-4
-    epochs = 10
+    batch_size = args.batch_size
+    lr = args.lr
+    epochs = args.epochs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -89,13 +99,22 @@ def train():
     best_val_loss = float('inf')
     patience = 3
     counter = 0
+    history = {
+        'train_loss': [],
+        'val_loss': [],
+        'val_accuracy': [],
+        'val_f1': [],
+        'val_auc': []
+    }
 
     print("Starting training...")
     for epoch in range(epochs):
         model.train()
         total_loss = 0
         train_loop = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
-        for batch in train_loop:
+        for i, batch in enumerate(train_loop):
+            if args.max_steps > 0 and i >= args.max_steps:
+                break
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
@@ -113,6 +132,16 @@ def train():
         
         # Validation
         metrics = evaluate(model, val_loader, device)
+        
+        history['train_loss'].append(avg_train_loss)
+        history['val_loss'].append(metrics['loss'])
+        history['val_accuracy'].append(metrics['accuracy'])
+        history['val_f1'].append(metrics['f1'])
+        history['val_auc'].append(metrics['auc'])
+        
+        import json
+        with open('training_history.json', 'w') as f:
+            json.dump(history, f)
         
         print(f"Epoch {epoch+1}: Train Loss: {avg_train_loss:.4f}, Val Loss: {metrics['loss']:.4f}, Acc: {metrics['accuracy']:.4f}, F1: {metrics['f1']:.4f}, AUC: {metrics['auc']:.4f}")
 

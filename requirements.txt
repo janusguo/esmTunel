@@ -1,0 +1,9 @@
+torch
+transformers
+peft
+datasets
+scikit-learn
+pandas
+tqdm
+matplotlib
+biopython
