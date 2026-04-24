@@ -36,8 +36,8 @@ class ESMAllergenicityModel(nn.Module):
             nn.Linear(hidden_size, 512),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Linear(512, 1)
+            # Sigmoid removed to use BCEWithLogitsLoss for stability
         )
         
         # Ensure classifier matches backbone dtype

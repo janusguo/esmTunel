@@ -14,7 +14,7 @@ def evaluate(model, data_loader, device):
     all_preds = []
     all_labels = []
     total_loss = 0
-    criterion = nn.BCELoss()
+    criterion = nn.BCEWithLogitsLoss()
     
     with torch.no_grad():
         for batch in data_loader:
@@ -28,7 +28,9 @@ def evaluate(model, data_loader, device):
             loss = criterion(outputs, labels)
             total_loss += loss.item()
             
-            all_preds.extend(outputs.cpu().numpy())
+            # Apply sigmoid for metrics
+            probs = torch.sigmoid(outputs)
+            all_preds.extend(probs.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
     
     all_preds = np.array(all_preds)
@@ -95,7 +97,7 @@ def train():
     
     # Optimizer and Loss
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.01)
-    criterion = nn.BCELoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     # Early Stopping
     best_val_loss = float('inf')
