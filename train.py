@@ -53,24 +53,30 @@ def evaluate(model, val_loader, device):
 def train():
     # Parameters
     model_name = "facebook/esm2_t33_650M_UR50D"
-    train_path = "/home/team/shared/data/train.csv"
-    val_path = "/home/team/shared/data/val.csv"
+    data_dir = "/home/team/shared/data"
+    train_path = os.path.join(data_dir, "train.csv")
+    val_path = os.path.join(data_dir, "val.csv")
+    test_path = os.path.join(data_dir, "test.csv")
+    
     batch_size = 16
     lr = 1e-4
     epochs = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    if not os.path.exists(train_path) or not os.path.exists(val_path):
-        print(f"Data not found. Please ensure bio_researcher has prepared train.csv and val.csv in /home/team/shared/data/")
+    if not all(os.path.exists(p) for p in [train_path, val_path, test_path]):
+        print(f"Data files not found in {data_dir}. Please ensure bio_researcher has prepared train.csv, val.csv, and test.csv.")
         return
 
     # Load Datasets
+    print("Loading datasets...")
     train_dataset = ProteinDataset(train_path, tokenizer_name=model_name)
     val_dataset = ProteinDataset(val_path, tokenizer_name=model_name)
+    test_dataset = ProteinDataset(test_path, tokenizer_name=model_name)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     # Initialize Model
     model = ESMAllergenicityModel(model_name=model_name).to(device)
@@ -84,6 +90,7 @@ def train():
     patience = 3
     counter = 0
 
+    print("Starting training...")
     for epoch in range(epochs):
         model.train()
         total_loss = 0
@@ -120,6 +127,13 @@ def train():
             if counter >= patience:
                 print("Early stopping triggered")
                 break
+
+    # Test Evaluation
+    print("\n--- Final Evaluation on Test Set ---")
+    if os.path.exists("best_model.pt"):
+        model.load_state_dict(torch.load("best_model.pt"))
+    test_metrics = evaluate(model, test_loader, device)
+    print(f"Test Loss: {test_metrics['loss']:.4f}, Acc: {test_metrics['accuracy']:.4f}, F1: {test_metrics['f1']:.4f}, AUC: {test_metrics['auc']:.4f}")
 
 if __name__ == "__main__":
     train()
