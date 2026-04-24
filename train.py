@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from model import ESMAllergenicityModel
 from dataset import ProteinDataset
@@ -9,22 +9,22 @@ import os
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
 
-def evaluate(model, val_loader, device):
+def evaluate(model, data_loader, device):
     model.eval()
     all_preds = []
     all_labels = []
-    val_loss = 0
+    total_loss = 0
     criterion = nn.BCELoss()
     
     with torch.no_grad():
-        for batch in val_loader:
+        for batch in data_loader:
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             labels = batch['label'].to(device).unsqueeze(1)
             
             outputs = model(input_ids, attention_mask)
             loss = criterion(outputs, labels)
-            val_loss += loss.item()
+            total_loss += loss.item()
             
             all_preds.extend(outputs.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
@@ -42,7 +42,7 @@ def evaluate(model, val_loader, device):
         auc = 0.5
     
     return {
-        'loss': val_loss / len(val_loader),
+        'loss': total_loss / len(data_loader),
         'accuracy': acc,
         'precision': precision,
         'recall': recall,
@@ -53,25 +53,30 @@ def evaluate(model, val_loader, device):
 def train():
     # Parameters
     model_name = "facebook/esm2_t33_650M_UR50D"
-    data_path = "/home/team/shared/data/processed_data.csv"
+    data_dir = "/home/team/shared/data"
+    train_path = os.path.join(data_dir, "train.csv")
+    val_path = os.path.join(data_dir, "val.csv")
+    test_path = os.path.join(data_dir, "test.csv")
+    
     batch_size = 16
     lr = 1e-4
     epochs = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    if not os.path.exists(data_path):
-        print(f"Data not found at {data_path}. Please ensure bio_researcher has prepared the data.")
+    if not all(os.path.exists(p) for p in [train_path, val_path, test_path]):
+        print(f"Data files not found in {data_dir}. Please ensure bio_researcher has prepared train.csv, val.csv, and test.csv.")
         return
 
-    # Load Dataset
-    dataset = ProteinDataset(data_path, tokenizer_name=model_name)
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    # Load Datasets
+    print("Loading datasets...")
+    train_dataset = ProteinDataset(train_path, tokenizer_name=model_name)
+    val_dataset = ProteinDataset(val_path, tokenizer_name=model_name)
+    test_dataset = ProteinDataset(test_path, tokenizer_name=model_name)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     # Initialize Model
     model = ESMAllergenicityModel(model_name=model_name).to(device)
@@ -85,6 +90,7 @@ def train():
     patience = 3
     counter = 0
 
+    print("Starting training...")
     for epoch in range(epochs):
         model.train()
         total_loss = 0
@@ -121,6 +127,13 @@ def train():
             if counter >= patience:
                 print("Early stopping triggered")
                 break
+    
+    # Test Evaluation
+    print("\n--- Final Evaluation on Test Set ---")
+    if os.path.exists("best_model.pt"):
+        model.load_state_dict(torch.load("best_model.pt"))
+    test_metrics = evaluate(model, test_loader, device)
+    print(f"Test Loss: {test_metrics['loss']:.4f}, Acc: {test_metrics['accuracy']:.4f}, F1: {test_metrics['f1']:.4f}, AUC: {test_metrics['auc']:.4f}")
 
 if __name__ == "__main__":
     train()
