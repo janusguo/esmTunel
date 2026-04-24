@@ -7,9 +7,12 @@ class ESMAllergenicityModel(nn.Module):
     def __init__(self, model_name="facebook/esm2_t33_650M_UR50D", lora_r=8, lora_alpha=32):
         super(ESMAllergenicityModel, self).__init__()
         
-        # Load ESM-2 backbone
+        # Load ESM-2 backbone with float16 to save memory
         print(f"Loading backbone model: {model_name}")
-        self.esm = AutoModel.from_pretrained(model_name)
+        self.esm = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16)
+        
+        # Enable gradient checkpointing to save memory during fine-tuning
+        self.esm.gradient_checkpointing_enable()
         
         # LoRA Configuration
         peft_config = LoraConfig(
@@ -33,9 +36,12 @@ class ESMAllergenicityModel(nn.Module):
             nn.Linear(hidden_size, 512),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(512, 1),
-            nn.Sigmoid()
+            nn.Linear(512, 1)
+            # Sigmoid removed to use BCEWithLogitsLoss for stability
         )
+        
+        # Ensure classifier matches backbone dtype
+        self.classifier.to(self.esm.dtype)
 
     def forward(self, input_ids, attention_mask=None):
         outputs = self.esm(input_ids=input_ids, attention_mask=attention_mask)
