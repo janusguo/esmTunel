@@ -20,7 +20,9 @@ def evaluate(model, data_loader, device):
         for batch in data_loader:
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
-            labels = batch['label'].to(device).unsqueeze(1)
+            # Ensure labels match model dtype
+            model_dtype = next(model.parameters()).dtype
+            labels = batch['label'].to(device).unsqueeze(1).to(model_dtype)
             
             outputs = model(input_ids, attention_mask)
             loss = criterion(outputs, labels)
@@ -118,7 +120,9 @@ def train():
             optimizer.zero_grad()
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
-            labels = batch['label'].to(device).unsqueeze(1)
+            # Ensure labels match model dtype
+            model_dtype = next(model.parameters()).dtype
+            labels = batch['label'].to(device).unsqueeze(1).to(model_dtype)
             
             outputs = model(input_ids, attention_mask)
             loss = criterion(outputs, labels)
@@ -163,6 +167,11 @@ def train():
         model.load_state_dict(torch.load("best_model.pt"))
     test_metrics = evaluate(model, test_loader, device)
     print(f"Test Loss: {test_metrics['loss']:.4f}, Acc: {test_metrics['accuracy']:.4f}, F1: {test_metrics['f1']:.4f}, AUC: {test_metrics['auc']:.4f}")
+    
+    with open('test_metrics.json', 'w') as f:
+        json.dump(test_metrics, f)
+    
+    print("Results saved to test_metrics.json")
 
 if __name__ == "__main__":
     train()

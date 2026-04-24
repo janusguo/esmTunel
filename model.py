@@ -39,6 +39,9 @@ class ESMAllergenicityModel(nn.Module):
             nn.Linear(512, 1),
             nn.Sigmoid()
         )
+        
+        # Ensure classifier matches backbone dtype
+        self.classifier.to(self.esm.dtype)
 
     def forward(self, input_ids, attention_mask=None):
         outputs = self.esm(input_ids=input_ids, attention_mask=attention_mask)
