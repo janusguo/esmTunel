@@ -6,4 +6,5 @@ scikit-learn
 pandas
 tqdm
 matplotlib
+seaborn
 biopython

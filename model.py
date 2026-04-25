@@ -4,12 +4,14 @@ from transformers import AutoModel
 from peft import get_peft_model, LoraConfig, TaskType
 
 class ESMAllergenicityModel(nn.Module):
-    def __init__(self, model_name="facebook/esm2_t33_650M_UR50D", lora_r=8, lora_alpha=32):
+    def __init__(self, model_name="facebook/esm2_t33_650M_UR50D", lora_r=8, lora_alpha=32, attn_implementation=None):
         super(ESMAllergenicityModel, self).__init__()
-        
         # Load ESM-2 backbone with float16 to save memory
         print(f"Loading backbone model: {model_name}")
-        self.esm = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16)
+        kwargs = {"torch_dtype": torch.float16}
+        if attn_implementation:
+            kwargs["attn_implementation"] = attn_implementation
+        self.esm = AutoModel.from_pretrained(model_name, **kwargs)
         
         # Enable gradient checkpointing to save memory during fine-tuning
         self.esm.gradient_checkpointing_enable()
@@ -31,7 +33,6 @@ class ESMAllergenicityModel(nn.Module):
         # Classification Head
         # ESM-2 650M has hidden size 1280
         hidden_size = self.esm.config.hidden_size
-        
         self.classifier = nn.Sequential(
             nn.Linear(hidden_size, 512),
             nn.ReLU(),
@@ -45,10 +46,8 @@ class ESMAllergenicityModel(nn.Module):
 
     def forward(self, input_ids, attention_mask=None):
         outputs = self.esm(input_ids=input_ids, attention_mask=attention_mask)
-        
         # Use [CLS] token representation (the first token)
         # For ESM, the first token is <cls>
         cls_output = outputs.last_hidden_state[:, 0, :]
-        
         logits = self.classifier(cls_output)
         return logits
