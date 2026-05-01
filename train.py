@@ -67,7 +67,7 @@ def train():
 
     # Parameters
     model_name = args.model_name
-    data_dir = "/home/team/shared/data"
+    data_dir = "./data"
     train_path = os.path.join(data_dir, "train.csv")
     val_path = os.path.join(data_dir, "val.csv")
     test_path = os.path.join(data_dir, "test.csv")
